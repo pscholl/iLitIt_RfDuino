@@ -84,18 +84,12 @@ uint32_t evq_len()
 void setup()
 {
   // setup pin monitoring, careful: pin 0/1 are UART pins!
-  pinMode(BUTTON_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
   RFduino_pinWakeCallback(BUTTON_PIN, LOW, storeTime);
 
   // setup LED pin
   pinMode(LED_PIN, OUTPUT);
 
-  // setup BLE device
-  RFduinoBLE.deviceName = "iLitIt 1.0";
-  RFduinoBLE.advertisementData = "time";
-  RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
-  RFduinoBLE.txPowerLevel = -20;  // (-20dbM to +4 dBm)
-  RFduinoBLE.customUUID = "595403fb-f50e-4902-a99d-b39ffa4bb134";
 }
 
 int storeTime(uint32_t pin)
@@ -103,9 +97,9 @@ int storeTime(uint32_t pin)
   static uint32_t lastcall = -DEBOUNCE_MS;
   int32_t diff = millis() - lastcall;
 
-  if (EVQ_SIZE-evq_len() == 0 || diff < DEBOUNCE_MS) {
-    RFduino_resetPinWake(BUTTON_PIN);
-    return 0; // do not wake-up
+  if (diff < DEBOUNCE_MS) {
+    //RFduino_resetPinWake(BUTTON_PIN);
+    return 1; // do not wake-up
   }
 
   evq.timestamp[evq.tail] = lastcall = millis();
@@ -121,7 +115,8 @@ volatile bool connected = false;
 void loop()
 {
   // only wakeup when button was triggered!
-  MyDelay( INFINITE );
+  MyDelay(INFINITE);
+
   DEBUG_START();
 
   DEBUG("wakey eak ");
@@ -134,6 +129,12 @@ void loop()
   if (evq_len() == 0)
     goto end;
 
+  // setup BLE device
+  RFduinoBLE.deviceName = "iLitIt 1.0";
+  RFduinoBLE.advertisementData = "time";
+  RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
+  RFduinoBLE.txPowerLevel = -20;  // (-20dbM to +4 dBm)
+  RFduinoBLE.customUUID = "595403fb-f50e-4902-a99d-b39ffa4bb134";
   RFduinoBLE.begin();
   DEBUG("advertising");
 
@@ -175,10 +176,11 @@ void loop()
 
 end:
   digitalWrite(LED_PIN, LOW);
-  DEBUGLN("shutting down");
+  DEBUG("shutting down");
   connected = false;
   MyDelay(500);
   RFduinoBLE.end();
+  DEBUG("done");
   DEBUG_END();
 }
 
