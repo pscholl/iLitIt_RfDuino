@@ -31,7 +31,7 @@ Simply remove what you dont need, and fill in the rest.
 
 #include <RFduinoBLE.h>
 
-#if 1
+#if 0
 # define DEBUG(x) Serial.print(x)
 # define DEBUGLN(x) Serial.println(x)
 # define DEBUG_START() Serial.begin(9600)
@@ -69,7 +69,7 @@ struct { // this is what is send out
 * for 20hours of continous operation.
 */
 
-#define EVQ_SIZE 64
+#define EVQ_SIZE 512
 volatile struct { // this is our event queue
   volatile int32_t head, tail;
   uint32_t timestamp[EVQ_SIZE+1];
@@ -133,7 +133,7 @@ void loop()
   RFduinoBLE.deviceName = "iLitIt 1.0";
   RFduinoBLE.advertisementData = "time";
   RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
-  RFduinoBLE.txPowerLevel = -20;  // (-20dbM to +4 dBm)
+  RFduinoBLE.txPowerLevel = -10;  // (-20dbM to +4 dBm)
   RFduinoBLE.customUUID = "595403fb-f50e-4902-a99d-b39ffa4bb134";
   RFduinoBLE.begin();
   DEBUG("advertising");
@@ -142,9 +142,9 @@ void loop()
   for (uint32_t i=0; !connected && i < ADVERTISMENT_RETRIES; i++) {
     DEBUG(".");
     digitalWrite(LED_PIN, HIGH);
-    MyDelay(1);
+    RFduino_ULPDelay(1);
     digitalWrite(LED_PIN, LOW);
-    MyDelay(ADVERTISMENT_INTERVAL);
+    RFduino_ULPDelay(ADVERTISMENT_INTERVAL);
   }
 
   if(!connected) {
@@ -169,7 +169,7 @@ void loop()
       evq.head = (evq.head+1)%(EVQ_SIZE+1);
     else
     {
-      MyDelay(ADVERTISMENT_INTERVAL);
+      RFduino_ULPDelay(ADVERTISMENT_INTERVAL);
       timeout++;
     }
   }
@@ -178,7 +178,7 @@ end:
   digitalWrite(LED_PIN, LOW);
   DEBUG("shutting down");
   connected = false;
-  MyDelay(500);
+  RFduino_ULPDelay(500);
   RFduinoBLE.end();
   DEBUG("done");
   DEBUG_END();
