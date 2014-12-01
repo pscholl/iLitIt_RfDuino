@@ -98,8 +98,8 @@ void setup()
 char* read_battery_voltage()
 {
   static char str[32] = {0};
-  float voltage = analogRead(2) * (3.6/1023.0);
-  snprintf(str, sizeof(str), "%.4f", voltage);
+  uint32_t voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
+  snprintf(str, sizeof(str), "%d", voltage);
   return str;
 }
 
@@ -143,9 +143,12 @@ void loop()
   // setup BLE device
   RFduinoBLE.deviceName = "iLitIt 1.0";
   //RFduinoBLE.advertisementData = "time"; // maximum 31 bytes
+  /* read twice to get valid result */
   RFduinoBLE.advertisementData = read_battery_voltage();
+  RFduinoBLE.advertisementData = read_battery_voltage();
+  DEBUGLN(RFduinoBLE.advertisementData);
   RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
-  RFduinoBLE.txPowerLevel = -15;  // (-20dbM to +4 dBm)
+  RFduinoBLE.txPowerLevel = -20;  // (-20dbM to +4 dBm)
   RFduinoBLE.customUUID = "595403fb-f50e-4902-a99d-b39ffa4bb134";
   RFduinoBLE.begin();
   DEBUG("advertising");
@@ -154,9 +157,9 @@ void loop()
   for (uint32_t i=0; !connected && i < ADVERTISMENT_RETRIES; i++) {
     DEBUG(".");
     digitalWrite(LED_PIN, HIGH);
-    RFduino_ULPDelay(1);
+    MyDelay(1);
     digitalWrite(LED_PIN, LOW);
-    RFduino_ULPDelay(ADVERTISMENT_INTERVAL);
+    MyDelay(ADVERTISMENT_INTERVAL);
   }
 
   if(!connected) {
@@ -181,7 +184,7 @@ void loop()
       evq.head = (evq.head+1)%(EVQ_SIZE+1);
     else
     {
-      RFduino_ULPDelay(ADVERTISMENT_INTERVAL);
+      MyDelay(ADVERTISMENT_INTERVAL);
       timeout++;
     }
   }
@@ -190,7 +193,7 @@ end:
   digitalWrite(LED_PIN, LOW);
   DEBUG("shutting down");
   connected = false;
-  RFduino_ULPDelay(500);
+  MyDelay(500);
   RFduinoBLE.end();
   DEBUG("done");
   DEBUG_END();
