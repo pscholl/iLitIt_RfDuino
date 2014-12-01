@@ -90,6 +90,17 @@ void setup()
   // setup LED pin
   pinMode(LED_PIN, OUTPUT);
 
+  // for battery level measurement
+  analogReference(VBG); // bandgap 1.2v selection
+  analogSelection(VDD_1_3_PS); // 1/3 prescaling
+}
+
+char* read_battery_voltage()
+{
+  static char str[32] = {0};
+  float voltage = analogRead(2) * (3.6/1023.0);
+  snprintf(str, sizeof(str), "%.4f", voltage);
+  return str;
 }
 
 int storeTime(uint32_t pin)
@@ -131,9 +142,10 @@ void loop()
 
   // setup BLE device
   RFduinoBLE.deviceName = "iLitIt 1.0";
-  RFduinoBLE.advertisementData = "time";
+  //RFduinoBLE.advertisementData = "time"; // maximum 31 bytes
+  RFduinoBLE.advertisementData = read_battery_voltage();
   RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
-  RFduinoBLE.txPowerLevel = -10;  // (-20dbM to +4 dBm)
+  RFduinoBLE.txPowerLevel = -15;  // (-20dbM to +4 dBm)
   RFduinoBLE.customUUID = "595403fb-f50e-4902-a99d-b39ffa4bb134";
   RFduinoBLE.begin();
   DEBUG("advertising");
