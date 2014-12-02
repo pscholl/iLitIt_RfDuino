@@ -75,6 +75,9 @@ volatile struct { // this is our event queue
   uint32_t timestamp[EVQ_SIZE+1];
 } evq = {0,0};
 
+/* this is used to figure out when the chip got reset because of a powerloss */
+static uint32_t events_since_powerup = 0;
+
 uint32_t evq_len()
 {
   int32_t n = (evq.tail-evq.head) % (EVQ_SIZE+1);
@@ -85,7 +88,6 @@ void setup()
 {
   // setup pin monitoring, careful: pin 0/1 are UART pins!
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  RFduino_pinWakeCallback(BUTTON_PIN, LOW, storeTime);
 
   // setup LED pin
   pinMode(LED_PIN, OUTPUT);
@@ -95,11 +97,13 @@ void setup()
   analogSelection(VDD_1_3_PS); // 1/3 prescaling
 }
 
-char* read_battery_voltage()
+char* power_status()
 {
   static char str[32] = {0};
   uint32_t voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
-  snprintf(str, sizeof(str), "%d", voltage);
+  voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
+  snprintf(str, sizeof(str), "%d %s", voltage,
+                events_since_powerup < 2 ? "empty" : "");
   return str;
 }
 
@@ -116,6 +120,8 @@ int storeTime(uint32_t pin)
   evq.timestamp[evq.tail] = lastcall = millis();
   evq.tail = (evq.tail+1)%(EVQ_SIZE+1);
 
+  events_since_powerup += 1;
+
   return 1; // ring, ring, wake up!
 }
 
@@ -126,26 +132,18 @@ volatile bool connected = false;
 void loop()
 {
   // only wakeup when button was triggered!
+  RFduino_pinWakeCallback(BUTTON_PIN, LOW, storeTime);
   MyDelay(INFINITE);
+  RFduino_pinWakeCallback(BUTTON_PIN, DISABLE, NULL);
 
   DEBUG_START();
-
-  DEBUG("wakey eak ");
-  DEBUG(evq.head);
-  DEBUG(" ");
-  DEBUG(evq.tail);
-  DEBUG(" ");
-  DEBUGLN(evq_len());
 
   if (evq_len() == 0)
     goto end;
 
   // setup BLE device
   RFduinoBLE.deviceName = "iLitIt 1.0";
-  //RFduinoBLE.advertisementData = "time"; // maximum 31 bytes
-  /* read twice to get valid result */
-  RFduinoBLE.advertisementData = read_battery_voltage();
-  RFduinoBLE.advertisementData = read_battery_voltage();
+  RFduinoBLE.advertisementData = power_status();
   DEBUGLN(RFduinoBLE.advertisementData);
   RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
   RFduinoBLE.txPowerLevel = -20;  // (-20dbM to +4 dBm)
