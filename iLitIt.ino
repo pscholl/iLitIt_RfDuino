@@ -75,8 +75,12 @@ volatile struct { // this is our event queue
   uint32_t timestamp[EVQ_SIZE+1];
 } evq = {0,0};
 
-/* this is used to figure out when the chip got reset because of a powerloss */
+/* figure out when the chip got reset because of a powerloss */
 static uint32_t events_since_powerup = 0;
+
+/* store the startup value of the ADC register, to make sure it is turned
+** off during low-power mode. */
+static uint32_t adc_default_settings;
 
 uint32_t evq_len()
 {
@@ -95,15 +99,27 @@ void setup()
   // for battery level measurement
   analogReference(VBG); // bandgap 1.2v selection
   analogSelection(VDD_1_3_PS); // 1/3 prescaling
+  adc_default_settings = NRF_ADC->CONFIG;
 }
 
 char* power_status()
 {
+  NRF_ADC->TASKS_STOP =  0;
   static char str[32] = {0};
-  uint32_t voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
+  uint32_t voltage;
+
+  /* first call to analogRead starts the ADC, discard the first read, wait for
+  ** ADC to be charged and read again, then make sure it is properly turned
+  ** off and store the result in a string */
+  voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
+  RFduino_ULPDelay(100);
   voltage = (uint32_t) (analogRead(2) * (3.6/1023.0) * 1000);
   snprintf(str, sizeof(str), "%d %s", voltage,
                 events_since_powerup < 2 ? "empty" : "");
+
+  NRF_ADC->TASKS_START =  0; // make sure ADC is stopped
+  NRF_ADC->TASKS_STOP =  1; // make sure ADC is stopped
+  NRF_ADC->CONFIG = adc_default_settings;
   return str;
 }
 
