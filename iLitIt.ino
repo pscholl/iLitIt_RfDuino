@@ -51,7 +51,7 @@ struct { // this is what is send out
   uint32_t event_time_ms;
 } __attribute__((packed)) event;
 
-#define DEBOUNCE_MS           5500
+#define DEBOUNCE_MS           500
 #define ADVERTISMENT_INTERVAL MILLISECONDS(500)
 #define ADVERTISMENT_RETRIES  120
 
@@ -123,42 +123,42 @@ char* power_status()
   return str;
 }
 
-int storeTime(uint32_t pin)
-{
-  static uint32_t lastcall = -DEBOUNCE_MS;
-  int32_t diff = millis() - lastcall;
-
-  if (diff < DEBOUNCE_MS) {
-    //RFduino_resetPinWake(BUTTON_PIN);
-    return 1; // do not wake-up
-  }
-
-  evq.timestamp[evq.tail] = lastcall = millis();
-  evq.tail = (evq.tail+1)%(EVQ_SIZE+1);
-
-  events_since_powerup += 1;
-
-  return 1; // ring, ring, wake up!
-}
-
 volatile bool connected = false;
 
 #define MyDelay(x) do {RFduino_ULPDelay(x); RFduino_resetPinWake(BUTTON_PIN);} while(0);
 
+int wakeup(long unsigned int source)
+{
+  return 1;
+}
+
 void loop()
 {
   // only wakeup when button was triggered!
-  RFduino_pinWakeCallback(BUTTON_PIN, LOW, storeTime);
+  RFduino_pinWakeCallback(BUTTON_PIN, LOW, wakeup);
   MyDelay(INFINITE);
-  RFduino_pinWakeCallback(BUTTON_PIN, DISABLE, NULL);
 
   DEBUG_START();
+  DEBUGLN("woke up");
 
-  if (evq_len() == 0)
-    goto end;
+  // ignore any further pin changes and check if pin is low after
+  // DEBOUNCE Timeout
+  RFduino_pinWakeCallback(BUTTON_PIN, DISABLE, NULL);
+  MyDelay(DEBOUNCE_MS);
+  if (digitalRead(BUTTON_PIN)) {
+    DEBUGLN("sleeping...");
+    DEBUG_END();
+    return;
+  }
+
+  DEBUGLN("and going for it");
+
+  evq.timestamp[evq.tail] = millis();
+  evq.tail = (evq.tail+1)%(EVQ_SIZE+1);
+  events_since_powerup += 1;
 
   // setup BLE device
-  RFduinoBLE.deviceName = "iLitIt 1.0";
+  RFduinoBLE.deviceName = "iLitIt 1.3";
   RFduinoBLE.advertisementData = power_status();
   DEBUGLN(RFduinoBLE.advertisementData);
   RFduinoBLE.advertisementInterval = ADVERTISMENT_INTERVAL;
@@ -208,6 +208,9 @@ end:
   DEBUG("shutting down");
   connected = false;
   MyDelay(500);
+
+  // wait at least five minutes for the next cigarette
+  MyDelay(5 * 60 * 1000);
   RFduinoBLE.end();
   DEBUG("done");
   DEBUG_END();
