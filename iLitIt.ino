@@ -141,21 +141,25 @@ void loop()
   DEBUG_START();
   DEBUGLN("woke up");
 
-  // ignore any further pin changes and check if pin is low after
-  // DEBOUNCE Timeout
+  // ignore any further pin changes and check if pin is low after DEBOUNCE 
   RFduino_pinWakeCallback(BUTTON_PIN, DISABLE, NULL);
   MyDelay(DEBOUNCE_MS);
-  if (digitalRead(BUTTON_PIN)) {
+
+  // button pushed -> enqueue
+  if (digitalRead(BUTTON_PIN) == 0) {
+    evq.timestamp[evq.tail] = millis();
+    evq.tail = (evq.tail+1)%(EVQ_SIZE+1);
+    events_since_powerup += 1;
+  }
+
+  // is there something to report?
+  if (evq_len() == 0) {
     DEBUGLN("sleeping...");
     DEBUG_END();
     return;
   }
 
   DEBUGLN("and going for it");
-
-  evq.timestamp[evq.tail] = millis();
-  evq.tail = (evq.tail+1)%(EVQ_SIZE+1);
-  events_since_powerup += 1;
 
   // setup BLE device
   RFduinoBLE.deviceName = "iLitIt 1.3";
@@ -209,8 +213,8 @@ end:
   connected = false;
   MyDelay(500);
 
-  // wait at least five minutes for the next cigarette
-  MyDelay(5 * 60 * 1000);
+  // wait at least three minutes for the next cigarette
+  if (evq_len() == 0) MyDelay(3 * 60 * 1000);
   RFduinoBLE.end();
   DEBUG("done");
   DEBUG_END();
